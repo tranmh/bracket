@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "build-standalone": "NODE_ENV=production next build -d ../standalone/dist/frontend",
+    "export-standalone": "next export -o ../standalone/dist/frontend"
+  }
+}

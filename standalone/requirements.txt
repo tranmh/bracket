@@ -1,0 +1,25 @@
+# File: standalone/requirements.txt (UPDATED VERSION)
+# Replace your current standalone/requirements.txt with this:
+
+# SQLite async driver
+aiosqlite>=0.19.0
+
+# PyInstaller - latest version supporting Python 3.13
+pyinstaller>=6.14.0
+
+# FastAPI and web server dependencies (MISSING - ADD THESE)
+uvicorn>=0.18.0
+fastapi>=0.95.0
+pydantic>=1.10.0
+starlette>=0.27.0
+
+# Additional common dependencies that might be missing
+python-multipart>=0.0.5
+python-jose>=3.3.0
+passlib>=1.7.4
+
+# Async database support
+databases>=0.6.0
+
+# HTTP client for testing
+httpx>=0.24.0

@@ -1,0 +1,1 @@
+"""Standalone build system for Bracket tournament system"""

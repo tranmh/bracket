@@ -1,0 +1,76 @@
+{
+  "name": "bracket-tournament-desktop",
+  "version": "1.0.0",
+  "description": "Bracket Tournament System - Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-all": "electron-builder --win --mac --linux",
+    "dist": "npm run build-win"
+  },
+  "keywords": ["tournament", "bracket", "desktop", "electron"],
+  "author": "Bracket Tournament System",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "electron-log": "^4.4.8",
+    "node-fetch": "^2.6.7"
+  },
+  "build": {
+    "appId": "com.bracket.tournament",
+    "productName": "Bracket Tournament System",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/bracket-backend.exe",
+        "to": "app/"
+      },
+      {
+        "from": "../dist/frontend/",
+        "to": "app/frontend/"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Bracket Tournament"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}
