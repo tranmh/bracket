@@ -99,14 +99,14 @@ def check_dependencies():
     for module in required_modules:
         try:
             __import__(module)
-            print(f"✅ {module} available")
+            print(f"[OK] {module} available")
         except ImportError:
             missing.append(module)
-            print(f"❌ {module} missing")
-    
+            print(f"[ERROR] {module} missing")
+
     if missing:
-        print(f"\\n❌ Missing dependencies: {', '.join(missing)}")
-        print("💡 The executable may need to be rebuilt with these dependencies")
+        print(f"\\n[ERROR] Missing dependencies: {', '.join(missing)}")
+        print("[INFO] The executable may need to be rebuilt with these dependencies")
         return False
     
     return True
@@ -114,7 +114,7 @@ def check_dependencies():
 def find_app():
     """Find the FastAPI app instance with comprehensive search"""
     
-    print("🔍 Searching for FastAPI application...")
+    print("[INFO] Searching for FastAPI application...")
     
     # Comprehensive list of possible import paths
     possible_imports = [
@@ -141,30 +141,30 @@ def find_app():
     
     for module_name, app_name in possible_imports:
         try:
-            print(f"🔍 Trying {module_name}.{app_name}...")
+            print(f"[INFO] Trying {module_name}.{app_name}...")
             module = __import__(module_name, fromlist=[app_name])
             app = getattr(module, app_name, None)
             
             if app:
                 # Check if it's actually a FastAPI app
                 if hasattr(app, 'openapi') or 'FastAPI' in str(type(app)):
-                    print(f"✅ Found FastAPI app: {module_name}.{app_name}")
+                    print(f"[OK] Found FastAPI app: {module_name}.{app_name}")
                     return app, f"{module_name}:{app_name}"
                 elif callable(app):
                     # Might be an app factory
                     try:
                         app_instance = app()
                         if hasattr(app_instance, 'openapi'):
-                            print(f"✅ Found FastAPI app factory: {module_name}.{app_name}")
+                            print(f"[OK] Found FastAPI app factory: {module_name}.{app_name}")
                             return app_instance, f"{module_name}:{app_name}"
                     except:
                         pass
                         
         except ImportError as e:
-            print(f"⚠️ Could not import {module_name}: {e}")
+            print(f"[WARN] Could not import {module_name}: {e}")
             continue
         except Exception as e:
-            print(f"⚠️ Error loading {module_name}: {e}")
+            print(f"[WARN] Error loading {module_name}: {e}")
             continue
     
     return None, None
@@ -172,10 +172,10 @@ def find_app():
 def start_server():
     """Start the uvicorn server"""
     
-    print("🚀 Starting Bracket Tournament System (Standalone Mode)")
-    print(f"📍 Python executable: {sys.executable}")
-    print(f"📁 Working directory: {os.getcwd()}")
-    print(f"🔧 Standalone mode: {os.getenv('BRACKET_STANDALONE', 'false')}")
+    print("[INFO] Starting Bracket Tournament System (Standalone Mode)")
+    print(f"[INFO] Python executable: {sys.executable}")
+    print(f"[INFO] Working directory: {os.getcwd()}")
+    print(f"[INFO] Standalone mode: {os.getenv('BRACKET_STANDALONE', 'false')}")
     
     # Check dependencies
     if not check_dependencies():
@@ -185,9 +185,9 @@ def start_server():
     # Import uvicorn here (after dependency check)
     try:
         import uvicorn
-        print("✅ uvicorn imported successfully")
+        print("[OK] uvicorn imported successfully")
     except ImportError as e:
-        print(f"❌ Failed to import uvicorn: {e}")
+        print(f"[ERROR] Failed to import uvicorn: {e}")
         input("Press Enter to exit...")
         sys.exit(1)
     
@@ -195,9 +195,9 @@ def start_server():
     app, app_string = find_app()
     
     if app and app_string:
-        print(f"✅ Starting server with {app_string}")
-        print("🌐 Server will be available at: http://127.0.0.1:8400")
-        print("📚 API documentation at: http://127.0.0.1:8400/docs")
+        print(f"[OK] Starting server with {app_string}")
+        print("[INFO] Server will be available at: http://127.0.0.1:8400")
+        print("[INFO] API documentation at: http://127.0.0.1:8400/docs")
         
         try:
             # Start uvicorn server
@@ -210,20 +210,20 @@ def start_server():
                 reload=False
             )
         except Exception as e:
-            print(f"❌ Failed to start server: {e}")
+            print(f"[ERROR] Failed to start server: {e}")
             input("Press Enter to exit...")
             sys.exit(1)
     else:
-        print("❌ Could not find FastAPI app!")
-        print("\\n🔍 Please check that your FastAPI app is properly defined")
-        print("💡 The app should be importable and named 'app'")
-        
+        print("[ERROR] Could not find FastAPI app!")
+        print("\\n[INFO] Please check that your FastAPI app is properly defined")
+        print("[INFO] The app should be importable and named 'app'")
+
         # Give some debug information
-        print("\\n📁 Current directory contents:")
+        print("\\n[DEBUG] Current directory contents:")
         try:
             for item in os.listdir('.'):
                 if item.endswith('.py'):
-                    print(f"  📄 {item}")
+                    print(f"  - {item}")
         except:
             pass
             
@@ -234,9 +234,9 @@ if __name__ == "__main__":
     try:
         start_server()
     except KeyboardInterrupt:
-        print("\\n👋 Server stopped by user")
+        print("\\n[INFO] Server stopped by user")
     except Exception as e:
-        print(f"\\n❌ Unexpected error: {e}")
+        print(f"\\n[ERROR] Unexpected error: {e}")
         input("Press Enter to exit...")
         sys.exit(1)
 '''
@@ -265,8 +265,12 @@ def build_backend_executable():
     # Find or create main file
     main_file = find_main_file()
     if not main_file:
-        main_file = create_enhanced_main_file()
-    
+        try:
+            main_file = create_enhanced_main_file()
+        except OSError as e:
+            print(f"⚠️ Failed to create main file: {e}")
+            main_file = None
+
     if not main_file or not main_file.exists():
         print("❌ Could not find or create main file")
         return False
