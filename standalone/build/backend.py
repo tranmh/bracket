@@ -265,8 +265,12 @@ def build_backend_executable():
     # Find or create main file
     main_file = find_main_file()
     if not main_file:
-        main_file = create_enhanced_main_file()
-    
+        try:
+            main_file = create_enhanced_main_file()
+        except OSError as e:
+            print(f"⚠️ Failed to create main file: {e}")
+            main_file = None
+
     if not main_file or not main_file.exists():
         print("❌ Could not find or create main file")
         return False
