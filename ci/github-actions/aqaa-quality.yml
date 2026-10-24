@@ -1,0 +1,475 @@
+# The safety net of bracket, written by aqaa from what its QA run found:
+# unit tests with coverage and its floor, integration tests against the databases they need, end-to-end tests,
+# lint, SAST and dependency audits (report only until the findings are triaged; SARIF goes to code scanning).
+# Actions are pinned to commit SHAs (the comment names the release); jobs get read-only tokens.
+name: aqaa quality
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit-nextjs-docs:
+    name: Unit tests (nextjs docs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: docs/yarn.lock
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          corepack enable
+          yarn install --frozen-lockfile
+          npm install --no-save --no-audit --no-fund "@vitest/coverage-v8@$(node -p "require('vitest/package.json').version")"
+      - name: Unit tests
+        run: npx vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=test-reports/coverage --reporter=default --reporter=junit --outputFile.junit=test-reports/unit.xml --exclude '**/*.integration.test.*' --exclude 'e2e/**'
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-nextjs-docs
+          path: docs/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  checks-nextjs-docs:
+    name: Static analysis (nextjs docs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: docs/yarn.lock
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          corepack enable
+          yarn install --frozen-lockfile
+          npm install --no-save --no-audit --no-fund "@vitest/coverage-v8@$(node -p "require('vitest/package.json').version")"
+      - name: eslint (lint, report only)
+        run: if ls eslint.config.* .eslintrc* >/dev/null 2>&1; then npx eslint .; else echo 'no ESLint configuration'; fi
+        continue-on-error: true
+      - name: tsc (lint, report only)
+        run: npx tsc --noEmit
+        continue-on-error: true
+      - name: npm audit (dependency, report only)
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true
+  unit-nextjs-frontend:
+    name: Unit tests (nextjs frontend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          corepack enable
+          yarn install --frozen-lockfile
+          npm install --no-save --no-audit --no-fund jest-junit@17.0.0
+      - name: Unit tests
+        run: JEST_JUNIT_OUTPUT_DIR=test-reports JEST_JUNIT_OUTPUT_NAME=unit.xml npx jest --ci --coverage --coverageReporters=cobertura --coverageDirectory=test-reports/coverage --reporters=default --reporters=jest-junit --testPathIgnorePatterns integration e2e
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-nextjs-frontend
+          path: frontend/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  e2e-nextjs-frontend:
+    name: End-to-end tests (nextjs frontend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          corepack enable
+          yarn install --frozen-lockfile
+          npm install --no-save --no-audit --no-fund jest-junit@17.0.0
+          npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: PLAYWRIGHT_JUNIT_OUTPUT_NAME=test-reports/e2e.xml npx playwright test --reporter=junit,list
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-nextjs-frontend
+          path: frontend/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  checks-nextjs-frontend:
+    name: Static analysis (nextjs frontend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          corepack enable
+          yarn install --frozen-lockfile
+          npm install --no-save --no-audit --no-fund jest-junit@17.0.0
+      - name: eslint (lint, report only)
+        run: if ls eslint.config.* .eslintrc* >/dev/null 2>&1; then npx eslint .; else echo 'no ESLint configuration'; fi
+        continue-on-error: true
+      - name: tsc (lint, report only)
+        run: npx tsc --noEmit
+        continue-on-error: true
+      - name: npm audit (dependency, report only)
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true
+  unit-node-standalone-electron:
+    name: Unit tests (node standalone/electron)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: standalone/electron
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: standalone/electron/package-lock.json
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          npm ci
+          npm install --no-save --no-audit --no-fund "@vitest/coverage-v8@$(node -p "require('vitest/package.json').version")"
+      - name: Unit tests
+        run: npx vitest run --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=test-reports/coverage --reporter=default --reporter=junit --outputFile.junit=test-reports/unit.xml --exclude '**/*.integration.test.*' --exclude 'e2e/**'
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-node-standalone-electron
+          path: standalone/electron/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  checks-node-standalone-electron:
+    name: Static analysis (node standalone/electron)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: standalone/electron
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: standalone/electron/package-lock.json
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          mkdir -p test-reports
+          npm ci
+          npm install --no-save --no-audit --no-fund "@vitest/coverage-v8@$(node -p "require('vitest/package.json').version")"
+      - name: eslint (lint, report only)
+        run: if ls eslint.config.* .eslintrc* >/dev/null 2>&1; then npx eslint .; else echo 'no ESLint configuration'; fi
+        continue-on-error: true
+      - name: npm audit (dependency, report only)
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true
+  unit-python-backend:
+    name: Unit tests (python backend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: 3.13
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          . .venv-ci/bin/activate
+          mkdir -p test-reports
+          python -m venv .venv-ci
+          . .venv-ci/bin/activate && python -m pip install --upgrade pip
+          . .venv-ci/bin/activate && if [ -f pyproject.toml ]; then pip install -e '.[test,dev]' || pip install -e .; fi
+          . .venv-ci/bin/activate && for f in requirements*.txt; do if [ -f "$f" ]; then pip install -r "$f"; fi; done
+          . .venv-ci/bin/activate && pip install pytest==9.1.1 pytest-cov==7.1.0 ruff==0.17.2 'bandit[sarif]==1.9.4' pip-audit==2.10.1
+      - name: Unit tests
+        run: |-
+          . .venv-ci/bin/activate
+          python -m pytest -q -m "not integration and not e2e" --junitxml=test-reports/unit.xml --cov=. --cov-report=xml:test-reports/coverage.xml || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }
+      - name: Coverage floor (85%)
+        run: python3 "$GITHUB_WORKSPACE/ci/coverage_gate.py" cobertura 'test-reports/coverage.xml' 85
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-python-backend
+          path: backend/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  integration-python-backend:
+    name: Integration tests (python backend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aqaa
+          POSTGRES_PASSWORD: aqaa
+          POSTGRES_DB: aqaa
+        ports: ['5432:5432']
+        options: "--health-cmd \"pg_isready -U aqaa -d aqaa\" --health-interval 2s --health-timeout 5s --health-retries 30"
+    env:
+      AQAA_PG_URL: postgres://aqaa:aqaa@localhost:5432/aqaa?sslmode=disable
+      AQAA_PG_CONNECTION_STRING: Host=localhost;Port=5432;Database=aqaa;Username=aqaa;Password=aqaa
+      DATABASE_URL: postgres://aqaa:aqaa@localhost:5432/aqaa?sslmode=disable
+      AQAA_SQLITE_PATH: /tmp/aqaa.db
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: 3.13
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          . .venv-ci/bin/activate
+          mkdir -p test-reports
+          python -m venv .venv-ci
+          . .venv-ci/bin/activate && python -m pip install --upgrade pip
+          . .venv-ci/bin/activate && if [ -f pyproject.toml ]; then pip install -e '.[test,dev]' || pip install -e .; fi
+          . .venv-ci/bin/activate && for f in requirements*.txt; do if [ -f "$f" ]; then pip install -r "$f"; fi; done
+          . .venv-ci/bin/activate && pip install pytest==9.1.1 pytest-cov==7.1.0 ruff==0.17.2 'bandit[sarif]==1.9.4' pip-audit==2.10.1
+      - name: Integration tests
+        run: |-
+          . .venv-ci/bin/activate
+          python -m pytest -q -m integration --junitxml=test-reports/integration.xml || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-python-backend
+          path: backend/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  checks-python-backend:
+    name: Static analysis (python backend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: 3.13
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          . .venv-ci/bin/activate
+          mkdir -p test-reports
+          python -m venv .venv-ci
+          . .venv-ci/bin/activate && python -m pip install --upgrade pip
+          . .venv-ci/bin/activate && if [ -f pyproject.toml ]; then pip install -e '.[test,dev]' || pip install -e .; fi
+          . .venv-ci/bin/activate && for f in requirements*.txt; do if [ -f "$f" ]; then pip install -r "$f"; fi; done
+          . .venv-ci/bin/activate && pip install pytest==9.1.1 pytest-cov==7.1.0 ruff==0.17.2 'bandit[sarif]==1.9.4' pip-audit==2.10.1
+      - name: ruff (lint, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          ruff check .
+        continue-on-error: true
+      - name: bandit (sast, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          bandit -r . -x ./tests,./.venv-ci,./node_modules -f sarif -o test-reports/bandit.sarif
+        continue-on-error: true
+      - if: always() && hashFiles('backend/test-reports/bandit.sarif') != ''
+        continue-on-error: true
+        name: Upload bandit findings to code scanning
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: backend/test-reports/bandit.sarif
+          category: bandit-python-backend
+      - name: pip-audit (dependency, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          pip-audit
+        continue-on-error: true
+  unit-python-standalone:
+    name: Unit tests (python standalone)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: standalone
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: 3.13
+          cache: pip
+          cache-dependency-path: standalone/requirements.txt
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          . .venv-ci/bin/activate
+          mkdir -p test-reports
+          python -m venv .venv-ci
+          . .venv-ci/bin/activate && python -m pip install --upgrade pip
+          . .venv-ci/bin/activate && if [ -f pyproject.toml ]; then pip install -e '.[test,dev]' || pip install -e .; fi
+          . .venv-ci/bin/activate && for f in requirements*.txt; do if [ -f "$f" ]; then pip install -r "$f"; fi; done
+          . .venv-ci/bin/activate && pip install pytest==9.1.1 pytest-cov==7.1.0 ruff==0.17.2 'bandit[sarif]==1.9.4' pip-audit==2.10.1
+      - name: Unit tests
+        run: |-
+          . .venv-ci/bin/activate
+          python -m pytest -q -m "not integration and not e2e" --junitxml=test-reports/unit.xml --cov=. --cov-report=xml:test-reports/coverage.xml || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }
+      - name: Coverage floor (93%)
+        run: python3 "$GITHUB_WORKSPACE/ci/coverage_gate.py" cobertura 'test-reports/coverage.xml' 93
+      - if: always()
+        name: Upload test reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-python-standalone
+          path: standalone/test-reports
+          if-no-files-found: ignore
+          retention-days: 14
+  checks-python-standalone:
+    name: Static analysis (python standalone)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: standalone
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: 3.13
+          cache: pip
+          cache-dependency-path: standalone/requirements.txt
+      - name: Install dependencies
+        run: |- # zizmor: ignore[adhoc-packages] test tooling, pinned to exact versions
+          . .venv-ci/bin/activate
+          mkdir -p test-reports
+          python -m venv .venv-ci
+          . .venv-ci/bin/activate && python -m pip install --upgrade pip
+          . .venv-ci/bin/activate && if [ -f pyproject.toml ]; then pip install -e '.[test,dev]' || pip install -e .; fi
+          . .venv-ci/bin/activate && for f in requirements*.txt; do if [ -f "$f" ]; then pip install -r "$f"; fi; done
+          . .venv-ci/bin/activate && pip install pytest==9.1.1 pytest-cov==7.1.0 ruff==0.17.2 'bandit[sarif]==1.9.4' pip-audit==2.10.1
+      - name: ruff (lint, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          ruff check .
+        continue-on-error: true
+      - name: bandit (sast, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          bandit -r . -x ./tests,./.venv-ci,./node_modules -f sarif -o test-reports/bandit.sarif
+        continue-on-error: true
+      - if: always() && hashFiles('standalone/test-reports/bandit.sarif') != ''
+        continue-on-error: true
+        name: Upload bandit findings to code scanning
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: standalone/test-reports/bandit.sarif
+          category: bandit-python-standalone
+      - name: pip-audit (dependency, report only)
+        run: |-
+          . .venv-ci/bin/activate
+          pip-audit
+        continue-on-error: true
