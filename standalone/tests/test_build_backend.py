@@ -455,7 +455,6 @@ class TestBuildBackendExecutable:
             backend.build_backend_executable()
         build_env["run"].assert_not_called()
 
-    @pytest.mark.skip(reason="aqaa: open bug, see report")
     def test_missing_backend_dir_returns_false(self, build_env):
         # aqaa: suspected bug - the function reports "Could not find or create main
         # file" and returns False when no entry point can be produced, but when the
