@@ -206,12 +206,12 @@ class TestCreateEnhancedMainFile:
         with pytest.raises(FileNotFoundError):
             backend.create_enhanced_main_file()
 
-    @pytest.mark.skip(reason="aqaa: open bug, see report")
     def test_generated_file_is_windows_console_safe(self, generated_source):
-        # aqaa: suspected bug - backend/main.py was explicitly fixed to be
+        # aqaa: bug - backend/main.py was explicitly fixed to be
         # "Windows console compatible (no emoji characters)", but the generator
         # still emits emoji, which raise UnicodeEncodeError when stdout is a pipe
-        # with a legacy Windows code page (as when Electron spawns the backend).
+        # with a legacy Windows code page (electron/main.js spawns the backend
+        # with stdio ['pipe', 'pipe', 'pipe'] and no PYTHONIOENCODING).
         generated_source.encode("cp1252")
 
 
