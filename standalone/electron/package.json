@@ -11,12 +11,17 @@
     "build-all": "electron-builder --win --mac --linux",
     "dist": "npm run build-win"
   },
-  "keywords": ["tournament", "bracket", "desktop", "electron"],
+  "keywords": [
+    "tournament",
+    "bracket",
+    "desktop",
+    "electron"
+  ],
   "author": "Bracket Tournament System",
   "license": "AGPL-3.0",
   "devDependencies": {
-    "electron": "^27.0.0",
-    "electron-builder": "^24.6.4"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "electron-log": "^4.4.8",
@@ -48,11 +53,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
