@@ -20,7 +20,7 @@
   "author": "Bracket Tournament System",
   "license": "AGPL-3.0",
   "devDependencies": {
-    "electron": "^27.0.0",
+    "electron": "^45.0.0",
     "electron-builder": "^26.18.0"
   },
   "dependencies": {
