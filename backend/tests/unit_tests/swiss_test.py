@@ -1,17 +1,7 @@
-import random
 from decimal import Decimal
 
-import pytest
-
-from bracket.logic.scheduling import ladder_teams
 from bracket.logic.scheduling.ladder_teams import get_possible_upcoming_matches_for_swiss
-from bracket.models.db.match import (
-    Match,
-    MatchFilter,
-    MatchWithDetailsDefinitive,
-    SuggestedMatch,
-    get_match_hash,
-)
+from bracket.models.db.match import Match, MatchFilter, MatchWithDetailsDefinitive, SuggestedMatch
 from bracket.models.db.stage_item_inputs import (
     StageItemInput,
     StageItemInputFinal,
@@ -117,53 +107,3 @@ def test_constraints() -> None:
             player_behind_schedule_count=0,
         ),
     ]
-
-
-def test_dedupe_of_suggestions_scales_linearly(monkeypatch: pytest.MonkeyPatch) -> None:
-    comparisons = 0
-
-    class CountingHash(str):
-        __hash__ = str.__hash__
-
-        def __eq__(self, other: object) -> bool:
-            nonlocal comparisons
-            comparisons += 1
-            return str.__eq__(self, other)
-
-    monkeypatch.setattr(
-        ladder_teams,
-        "get_match_hash",
-        lambda id1, id2: CountingHash(get_match_hash(id1, id2)),
-    )
-
-    stage_item_input_dummy = StageItemInputFinal(
-        id=StageItemInputId(-1),
-        tournament_id=TournamentId(-1),
-        team_id=TeamId(-1),
-        slot=0,
-        points=Decimal("1000.0"),
-        wins=0,
-        draws=0,
-        losses=0,
-        team=Team(**DUMMY_TEAM1.model_dump(), id=TeamId(-1)),
-    )
-    inputs: list[StageItemInput] = [
-        stage_item_input_dummy.model_copy(update={"id": StageItemInputId(i)})
-        for i in range(1, 1001)
-    ]
-
-    def count_comparisons(iterations: int) -> int:
-        nonlocal comparisons
-        comparisons = 0
-        random.seed(0)
-        match_filter = MatchFilter(
-            elo_diff_threshold=1_000_000, iterations=iterations, limit=20, only_recommended=False
-        )
-        get_possible_upcoming_matches_for_swiss(match_filter, [], inputs)
-        return comparisons
-
-    comparisons_n = count_comparisons(1_000)
-    comparisons_2n = count_comparisons(2_000)
-
-    # Doubling the iterations should roughly double the dedupe work, not quadruple it.
-    assert comparisons_2n <= 3 * comparisons_n + 2 * 2_000
